@@ -1,32 +1,33 @@
 from __future__ import print_function
+import os
+import webbrowser
+
+import speech_recognition as sr
 import datetime
 import pickle
+import wikipedia
 import os.path
+import pyttsx3
+import pytz
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
-MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "november", "december"]
+MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-DAY_EXTENSIONS = ["rd", "th", "st"]
-
-import os
-import time
-import playsound
-import portaudio
-import speech_recognition as sr
-from gtts import gTTS
+DAY_EXTENTIONS = ["rd", "th", "st", "nd"]
 # google-api pip3
 
 
+def get_hour():
+    hour = int(datetime.datetime.now().hour)
 
 def speak(text):
+    engine = pyttsx3.init()
+    engine.say(text)
+    engine.runAndWait()
 
-    tts = gTTS(text=text, lang="en-US")
-    filename = "voice.mp3"
-    tts.save(filename)
-    playsound.playsound(filename)
 
 def get_audio():
     r = sr.Recognizer()
@@ -69,20 +70,37 @@ def authenticate_google_calendar():
 
     return service
 
-def get_events(n, service):
-    # Call the Calendar API
-    now = datetime.datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time
-    print(f'Getting the upcoming {n} events')
-    events_result = service.events().list(calendarId='primary', timeMin=now,
-                                        maxResults=n, singleEvents=True,
-                                        orderBy='startTime').execute()
+
+def get_events(day, service):
+    date = datetime.datetime.combine(day, datetime.datetime.min.time())
+    end_date = datetime.datetime.combine(day, datetime.datetime.max.time())
+    utc = pytz.UTC
+    date = date.astimezone(utc)
+    end_date = end_date.astimezone(utc)
+
+    events_result = service.events().list(calendarId='primary', timeMin=date.isoformat(), timeMax=end_date.isoformat(),
+                                          singleEvents=True,
+                                          orderBy='startTime').execute()
     events = events_result.get('items', [])
 
+    # NEW STUFF STARTS HERE
     if not events:
-        print('No upcoming events found.')
-    for event in events:
-        start = event['start'].get('dateTime', event['start'].get('date'))
-        print(start, event['summary'])
+        speak('No upcoming events found.')
+    else:
+        speak(f"You have {len(events)} events on this day.")
+
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            print(start, event['summary'])
+            start_time = str(start.split("T")[1].split("-")[0])  # get the hour the event starts
+            if int(start_time.split(":")[0]) < 12:  # if the event is in the morning
+                start_time = start_time + "am"
+            else:
+                start_time = str(int(start_time.split(":")[0]) - 12)  # convert 24 hour time to regular
+                start_time = start_time + "pm"
+
+            speak(event["summary"] + " at " + start_time)
+
 
 def get_date(text):
     text = text.lower()
@@ -104,31 +122,77 @@ def get_date(text):
         elif word.isdigit():
             day = int(word)
         else:
-            for ext in DAY_EXTENSIONS:
+            for ext in DAY_EXTENTIONS:
                 found = word.find(ext)
                 if found > 0:
                     try:
                         day = int(word[:found])
                     except:
                         pass
+
     if month < today.month and month != -1:
         year = year + 1
 
-    if day < today.day and month == -1 and day != -1:
-        month = month + 1
+    if month == -1 and day != -1:
+        if day < today.day:
+            month = today.month + 1
+        else:
+            month = today.month
 
     if month == -1 and day == -1 and day_of_week != -1:
         current_day_of_week = today.weekday()
-        difference = day_of_week - current_day_of_week
+        dif = day_of_week - current_day_of_week
 
-        if difference < 0:
-            difference += 7
+        if dif < 0:
+            dif += 7
             if text.count("next") >= 1:
-                difference += 7
+                dif += 7
 
-        return today + datetime.timedelta(difference)
+        return today + datetime.timedelta(dif)
 
-    return datetime.datetime(month=month, day=day, year=year)
+    if day != -1:  # FIXED FROM VIDEO
+        return datetime.date(month=month, day=day, year=year)
 
-text = get_audio().lower()
-print(get_date(text))
+def takeCommand():
+
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Listening...")
+        r.pause_threshold = 1
+        audio = r.listen(source)
+    try:
+        print("Recognizing...")
+        query = r.recognize_google(audio, language='en-in')  # Using google for voice recognition.
+        print(f"User said: {query}\n")  # User query will be printed.
+
+    except Exception as e:
+        # print(e)
+        print("Say that again please...")  # Say that again will be printed in case of improper voice
+        return "None"  # None string will be returned
+    return query
+
+if __name__ == "__main__":
+    get_hour()
+    while True:
+    # if 1:
+        query = takeCommand().lower() #Converting user query into lower case
+
+        # Logic for executing tasks based on query
+        if 'wikipedia' in query:  #if wikipedia found in the query then this block will be executed
+            speak('Searching Wikipedia...')
+            query = query.replace("wikipedia", "")
+            results = wikipedia.summary(query, sentences=2)
+            speak("According to Wikipedia")
+            print(results)
+            speak(results)
+
+        elif 'open youtube' in query:
+            webbrowser.open("youtube.com")
+
+        elif 'open google' in query:
+            webbrowser.open("google.com")
+
+
+        elif 'the time' in query:
+            strTime = datetime.datetime.now().strftime("%H:%M:%S")
+            speak(f"Sir, the time is {strTime}")
