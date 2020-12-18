@@ -98,7 +98,7 @@ def get_date(text):
 
     for word in text.split():
         if word in MONTHS:
-            month = MONTHS.index(month) + 1
+            month = MONTHS.index(word) + 1
         elif word in DAYS:
             day_of_week = DAYS.index(word)
         elif word.isdigit():
@@ -111,6 +111,24 @@ def get_date(text):
                         day = int(word[:found])
                     except:
                         pass
+    if month < today.month and month != -1:
+        year = year + 1
 
-service = authenticate_google_calendar()
-get_events(2, service)
+    if day < today.day and month == -1 and day != -1:
+        month = month + 1
+
+    if month == -1 and day == -1 and day_of_week != -1:
+        current_day_of_week = today.weekday()
+        difference = day_of_week - current_day_of_week
+
+        if difference < 0:
+            difference += 7
+            if text.count("next") >= 1:
+                difference += 7
+
+        return today + datetime.timedelta(difference)
+
+    return datetime.datetime(month=month, day=day, year=year)
+
+text = get_audio().lower()
+print(get_date(text))
