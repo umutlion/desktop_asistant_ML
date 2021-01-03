@@ -1,7 +1,6 @@
 from __future__ import print_function
 import os
 import webbrowser
-
 import speech_recognition as sr
 import datetime
 import pickle
@@ -9,9 +8,12 @@ import wikipedia
 import os.path
 import pyttsx3
 import pytz
+import playsound
+
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from gtts import gTTS
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
@@ -20,8 +22,12 @@ DAY_EXTENTIONS = ["rd", "th", "st", "nd"]
 # google-api pip3
 
 
-def get_hour():
-    hour = int(datetime.datetime.now().hour)
+def welcome(text):
+    tts = gTTS(text=text, lang="en-US")
+    filename = "voice.mp3"
+    tts.save(filename)
+    playsound.playsound(filename)
+
 
 def speak(text):
     engine = pyttsx3.init()
@@ -154,7 +160,6 @@ def get_date(text):
         return datetime.date(month=month, day=day, year=year)
 
 def takeCommand():
-
     r = sr.Recognizer()
     with sr.Microphone() as source:
         print("Listening...")
@@ -172,7 +177,7 @@ def takeCommand():
     return query
 
 if __name__ == "__main__":
-    get_hour()
+    welcome("hello umut, I am Nino. How may i help you?")
     while True:
     # if 1:
         query = takeCommand().lower() #Converting user query into lower case
